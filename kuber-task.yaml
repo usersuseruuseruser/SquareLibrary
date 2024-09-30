@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-app
+spec:
+  replicas: 3  # сказано 3 пода
+  selector:
+    matchLabels:
+      app: web-app
+  template:
+    metadata:
+      labels:
+        app: web-app
+    spec:
+      # используем anti-affinity для размещения подов на разных нодах
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100  # высокий приоритет для распределения подов
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - web-app
+                topologyKey: kubernetes.io/hostname  # распределение по разным нодам
+      containers:
+        - name: web-app-container
+          image: my-api-image:123
+          resources:
+            # минимальные запросы ресурсов для экономии
+            requests:
+              cpu: "100m"  
+              memory: "128Mi"  
+            # мграничения выше для обработки первых запросов
+            limits:
+              cpu: "1"  
+              memory: "256Mi"  
+          # readinessprobe, чтобы под не принимал трафик до готовности
+          readinessProbe:
+            httpGet:
+              path: /health-check-path  
+              port: 80
+            initialDelaySeconds: 5 # 5-10 сек в задании, так что 3 раза по 5 хватит
+            periodSeconds: 5
+            failureThreshold: 3
+          ports:
+            - containerPort: 80  
